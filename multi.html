@@ -1,1 +1,179 @@
-multi
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hikaye Oluşturma Oyunu</title>
+    <style>
+        body { /* Genel sayfa stilleri */
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+        .game-container { /* Oyun alanı stilleri */
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            width: 80%;
+            max-width: 600px;
+            text-align: center;
+        }
+        .output { /* Hikaye çıktısının gösterildiği alan */
+            margin-bottom: 20px;
+            min-height: 100px;
+            border: 1px solid #ddd;
+            padding: 10px;
+            text-align: left;
+        }
+         #kategoriSecimi { /* Kategori seçiminin gösterildiği alan */
+           margin-bottom: 20px;
+        }
+        #kelimeInput { /* Kelime giriş alanı */
+          width: calc(100% - 22px);
+            padding: 10px;
+            margin-top: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            color: black;
+        }
+        button { /* Genel buton stilleri */
+            padding: 10px 15px;
+            background-color: #007BFF;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-left: 10px;
+        }
+
+        button:hover { /* Buton hover stilleri */
+            background-color: #0056b3;
+        }
+        .user-input { /* Kullanıcı giriş alanları konteyneri */
+           margin-bottom: 10px;
+        }
+         .user-input button { /* Kullanıcı giriş alanları buton stilleri */
+             margin-left: 5px;
+           }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <div id="kategoriSecimi">
+            <p>Oyunumuza hoş geldiniz! Hikayenizin başlama kategorisi:</p>
+            <p id="kategori"></p>
+        </div>
+        <div class="output" id="output">
+            <!-- Hikaye burada görüntülenecek -->
+        </div>
+        <div class="user-input">
+            <input type="text" id="kelimeInput" placeholder="Hikayeye ekle..." style="display: none;">
+            <button id="submitBtn" style="display: none;">Gönder</button>
+            <button id="yenilgiBtn" style="display: none;">Yenildim</button>
+        </div>
+    </div>
+    <script>
+        // Oyun değişkenleri
+        let oyuncuSirasi = 1;  // Şu anki oyuncunun sırası (1 veya 2)
+        let hikaye = "";  // Oluşturulan hikaye metni
+        let kategoriDiv = document.getElementById("kategori");  // HTML'deki kategori alanını temsil eder
+        let outputDiv = document.getElementById("output");  // HTML'deki hikaye alanını temsil eder
+        let kelimeInput = document.getElementById("kelimeInput");  // Kullanıcının metin girdiği input alanını temsil eder
+        let submitBtn = document.getElementById("submitBtn");  // Gönder butonunu temsil eder
+        let yenilgiBtn = document.getElementById("yenilgiBtn");  // Yenilgi butonunu temsil eder
+        let kategoriler = ["Hayvanlar", "Meyveler", "Meslekler", "Ülkeler", "Renkler", "Sporlar"]; // Kategori seçenekleri
+        let secilenKategori;  // Rastgele seçilen kategori
+          const socket = new WebSocket('ws://localhost:8080');  // WebSocket bağlantısı
+
+        // WebSocket olay dinleyicileri
+         socket.onopen = () => {  // Bağlantı açıldığında çalışır
+            console.log('Connected to WebSocket server');
+        };
+
+        socket.onmessage = event => {   // Mesaj alındığında çalışır
+           // Diğer oyunculardan gelen güncellemeleri handle et.
+            updateOutput(event.data); // Gelen mesajı hikaye alanına ekle
+        };
+
+        socket.onclose = () => { // Bağlantı kapatıldığında çalışır
+            console.log('Disconnected from WebSocket server');
+        };
+        function updateOutput(text) { // Hikaye çıktısını ekrana yazdırır
+          outputDiv.innerHTML += `<p>${text}</p>`;
+        }
+        function clearInput() { // Input alanını temizler
+            kelimeInput.value = "";
+        }
+        function startGame(){ // Oyunu başlatır
+            kelimeInput.style.display = "block";
+            submitBtn.style.display = "block";
+             yenilgiBtn.style.display = "block";
+           outputDiv.innerHTML = ""; // Çıktı alanını temizle
+            secilenKategori = kategoriler[Math.floor(Math.random() * kategoriler.length)]; // Rastgele kategori seç
+            kategoriDiv.innerHTML = secilenKategori; // Kategori alanına yaz
+           updateOutput(`Oyun başladı! Hikayenin ilk kelimesi ${secilenKategori} kategorisinden... 1. oyuncu başlıyor`) // Başlangıç mesajı yaz
+           oyunDongusu(); // Oyun döngüsünü başlat
+        }
+       startGame(); // Oyunu başlattık.
+       async function oyunDongusu() { // Oyun döngüsü
+             while(true){ // Sonsuz döngü (oyun bitene kadar devam eder)
+               try{
+                    if (oyuncuSirasi === 1) { // 1. oyuncunun sırası
+                        let result = await oyuncuHamlesi(1); // 1. oyuncudan hamle al
+                        if(result == "yenildi"){ // Oyuncu yenildiyse
+                             socket.send("2. oyuncu kazandı!"); // Sunucuya 2. oyuncunun kazandığını bildir
+                            alert("2. oyuncu kazandı!"); // Ekrana alert mesajı ver
+                            break; // Döngüden çık
+                        }
+                       oyuncuSirasi = 2;  // Sırayı 2. oyuncuya geçir
+                    }else if (oyuncuSirasi === 2){ // 2. oyuncunun sırası
+                        let result = await oyuncuHamlesi(2); // 2. oyuncudan hamle al
+                          if(result == "yenildi"){ // Oyuncu yenildiyse
+                           socket.send("1. oyuncu kazandı!"); // Sunucuya 1. oyuncunun kazandığını bildir
+                             alert("1. oyuncu kazandı!");  // Ekrana alert mesajı ver
+                            break;  // Döngüden çık
+                         }
+                        oyuncuSirasi = 1; // Sırayı 1. oyuncuya geçir
+                     }
+                  }
+               catch(error){ // Hata yakalama
+                    console.error("Oyun döngüsünde hata oluştu:", error); // Konsola hata mesajını yaz
+                    await updateOutput("Oyunda beklenmedik bir hata oluştu. Lütfen sayfayı yenileyin."); // Ekrana hata mesajı yaz
+                   break;  // Döngüden çık
+                 }
+            }
+       }
+        function oyuncuHamlesi(oyuncuNo) { // Oyuncudan hamle al
+            return new Promise(resolve => {  // Promise kullanarak asenkron işlem yap
+               submitBtn.onclick = async () => { // Gönder butonuna basıldığında
+                    let girilenCümle = kelimeInput.value.trim();  // Input alanındaki değeri al ve boşlukları temizle
+                   if(girilenCümle == ""){ // Input boş ise
+                         alert("Lütfen bir cümle yaz!"); // Uyarı ver
+                         return;
+                    }
+                    let kelimeSayisi = girilenCümle.split(" ").length; // Cümledeki kelime sayısını bul
+                    if(kelimeSayisi < 3 || kelimeSayisi > 5) { // Kelime sayısı 3-5 arasında değilse
+                         alert("Lütfen 3 ile 5 kelime arasında bir cümle yaz!"); // Uyarı ver
+                         clearInput(); // Inputu temizle
+                          return;
+                    }
+                     hikaye += girilenCümle + " "; // Hikayeye cümleyi ekle
+                     socket.send(`${oyuncuNo}. oyuncu: ${girilenCümle}`); // Sunucuya mesajı gönder
+                   clearInput(); // Inputu temizle
+                   resolve(); // Promise'i tamamla
+                };
+              yenilgiBtn.onclick = async () => { // Yenilgi butonuna basıldığında
+                   socket.send(`Oyuncu ${oyuncuNo} yenildi`); // Sunucuya oyuncunun yenildiğini bildir
+                    resolve("yenildi"); // Promise'i tamamla ve yenilgi durumunu geri döndür
+              };
+            });
+        }
+    </script>
+</body>
+</html>
